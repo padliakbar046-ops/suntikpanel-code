@@ -1,3 +1,13 @@
 node_modules/
 .env
+.env.*
+*.bak
+*.bak2
 *.log
+services.json
+deposits.json
+orders.json
+users.json
+tickets.json
+vouchers.json
+backup/
