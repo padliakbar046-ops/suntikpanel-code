@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Status Server - SuntikPanel</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.status-banner { background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 20px; padding: 26px 22px; text-align: center; color: #fff; margin-bottom: 18px; }
+.status-icon { width: 60px; height: 60px; background: rgba(255,255,255,.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+.status-banner h2 { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+.status-banner p { font-size: 12px; opacity: .9; }
+.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.status-box { background: #fff; border-radius: 14px; padding: 16px; border-left: 4px solid #10b981; }
+.status-box small { display: block; font-size: 10px; color: #7a8a9a; font-weight: 700; letter-spacing: .5px; margin-bottom: 4px; text-transform: uppercase; }
+.status-box b { font-size: 20px; font-weight: 800; color: #1a2a3a; }
+.service-list { background: #fff; border-radius: 16px; padding: 6px; margin-bottom: 14px; }
+.service-item { display: flex; justify-content: space-between; align-items: center; padding: 14px; border-bottom: 1px solid #f0f4f8; }
+.service-item:last-child { border-bottom: none; }
+.service-item .left { display: flex; align-items: center; gap: 10px; }
+.service-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.2); }
+.service-item b { font-size: 13px; font-weight: 700; }
+.service-status { font-size: 10px; font-weight: 800; color: #10b981; background: #d1fae5; padding: 4px 10px; border-radius: 20px; letter-spacing: .5px; }
+</style>
+</head>
+<body>
+
+<div class="top-header">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div class="brand-text">
+      <h1>Status Server</h1>
+      <small>SuntikPanel</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="/menu.html" class="btn-menu">MENU</a>
+  </div>
+</div>
+
+<a href="/" class="btn-back">← Kembali ke Beranda</a>
+
+<div class="status-banner" id="statusBanner">
+  <div class="status-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px"><polyline points="20 6 9 17 4 12"/></svg></div>
+  <h2 id="statusTitle">Semua Sistem Normal</h2>
+  <p id="statusSub">Server berjalan dengan baik</p>
+</div>
+
+<div class="status-grid">
+  <div class="status-box"><small>Uptime</small><b id="uptimeText">-</b></div>
+  <div class="status-box" style="border-left-color:#2563eb"><small>Total User</small><b id="totalUser">-</b></div>
+  <div class="status-box" style="border-left-color:#f59e0b"><small>Total Order</small><b id="totalOrder">-</b></div>
+  <div class="status-box" style="border-left-color:#a855f7"><small>Pending</small><b id="totalPending">-</b></div>
+</div>
+
+<div class="section-title"><h3>Layanan</h3></div>
+
+<div class="service-list">
+  <div class="service-item"><div class="left"><div class="service-dot"></div><b>Web Server</b></div><span class="service-status">ONLINE</span></div>
+  <div class="service-item"><div class="left"><div class="service-dot"></div><b>Database</b></div><span class="service-status">ONLINE</span></div>
+  <div class="service-item"><div class="left"><div class="service-dot"></div><b>Payment Gateway (QRIS)</b></div><span class="service-status">ONLINE</span></div>
+  <div class="service-item"><div class="left"><div class="service-dot"></div><b>WhatsApp Notif</b></div><span class="service-status">ONLINE</span></div>
+</div>
+
+<p style="text-align:center;font-size:11px;color:#8a9aaa;margin-top:16px" id="lastCheck">-</p>
+
+<div class="footer">
+  <p><b>SuntikPanel</b> &middot; 2025</p>
+</div>
+
+<script>
+async function loadStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    document.getElementById('uptimeText').textContent = data.uptime.text;
+    document.getElementById('totalUser').textContent = data.stats.totalUsers;
+    document.getElementById('totalOrder').textContent = data.stats.totalOrders;
+    document.getElementById('totalPending').textContent = data.stats.totalPendingOrders;
+    document.getElementById('lastCheck').textContent = 'Terakhir dicek: ' + new Date().toLocaleTimeString('id-ID');
+  } catch (err) { console.error(err); }
+}
+loadStatus();
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

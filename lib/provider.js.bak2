@@ -1,0 +1,112 @@
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+const MAP_FILE = path.join(__dirname, 'services-map.json');
+const servicesMap = JSON.parse(fs.readFileSync(MAP_FILE, 'utf8'));
+
+const MODE     = process.env.PROVIDER_MODE || 'mock';
+const API_ID   = process.env.IRVAN_API_ID  || '';
+const API_KEY  = process.env.IRVAN_API_KEY || '';
+const BASE_URL = process.env.IRVAN_BASE_URL || 'https://irvankedesmm.co.id/api';
+
+function getServiceId(platform, layanan) {
+  const p = servicesMap[platform];
+  if (!p || !p[layanan]) return null;
+  return p[layanan].service_id;
+}
+
+// ---------- MOCK ----------
+function mockOrder({ platform, layanan, link, jumlah }) {
+  const id = 'MOCK' + Date.now();
+  console.log('[MOCK] Order', platform, layanan, jumlah, '->', id);
+  return { success: true, provider_order_id: id, note: 'Mock order (mode testing)' };
+}
+function mockStatus(providerOrderId) {
+  return { success: true, status: 'Success', start_count: 0, remains: 0, charge: 0, note: 'Mock status' };
+}
+function mockBalance() {
+  return { success: true, balance: 999999, note: 'Mock balance' };
+}
+
+// ---------- LIVE ----------
+async function liveRequest(action, params = {}) {
+  const form = new URLSearchParams();
+  form.append('api_id', API_ID);
+  form.append('api_key', API_KEY);
+  for (const [k, v] of Object.entries(params)) form.append(k, v);
+
+  const res = await axios.post(BASE_URL + '/' + action, form.toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    timeout: 20000
+  });
+  return res.data;
+}
+
+async function liveBalance() {
+  const data = await liveRequest('profile');
+  if (data && data.status === true && data.data) {
+    return { success: true, balance: data.data.balance || 0, email: data.data.email || '', note: '' };
+  }
+  return { success: false, balance: 0, note: (data && data.msg) ? data.msg : 'Gagal cek saldo' };
+}
+
+async function liveServices() {
+  const data = await liveRequest('services');
+  if (data && data.status === true && Array.isArray(data.data)) {
+    return { success: true, services: data.data };
+  }
+  return { success: false, services: [], note: (data && data.msg) ? data.msg : 'Gagal ambil layanan' };
+}
+
+async function liveOrder({ platform, layanan, link, jumlah }) {
+  const serviceId = getServiceId(platform, layanan);
+  if (!serviceId) {
+    return { success: false, message: 'Service ID untuk ' + platform + '/' + layanan + ' belum diisi di services-map.json' };
+  }
+  const data = await liveRequest('order', {
+    service: serviceId,
+    target: link,
+    quantity: jumlah
+  });
+
+  if (data && data.status === true && data.data && data.data.id) {
+    return {
+      success: true,
+      provider_order_id: String(data.data.id),
+      note: data.msg || 'Order dikirim ke provider'
+    };
+  }
+  return {
+    success: false,
+    message: (data && data.msg) ? data.msg : 'Gagal kirim order ke provider'
+  };
+}
+
+async function liveStatus(providerOrderId) {
+  const data = await liveRequest('status', { id: providerOrderId });
+  if (data && data.status === true && data.data) {
+    return {
+      success: true,
+      status: data.data.status || 'Pending',
+      start_count: data.data.start_count || 0,
+      remains: data.data.remains || 0,
+      charge: data.data.charge || 0,
+      note: data.msg || ''
+    };
+  }
+  return {
+    success: false,
+    status: 'Unknown',
+    note: (data && data.msg) ? data.msg : 'Gagal cek status'
+  };
+}
+
+module.exports = {
+  mode: MODE,
+  getServiceId,
+  order:    MODE === 'live' ? liveOrder    : mockOrder,
+  status:   MODE === 'live' ? liveStatus   : mockStatus,
+  balance:  MODE === 'live' ? liveBalance  : mockBalance,
+  services: MODE === 'live' ? liveServices : (async () => ({ success: true, services: [] }))
+};

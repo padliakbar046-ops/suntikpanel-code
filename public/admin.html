@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - SuntikPanel</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="top-bar">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div>
+      <h1>SuntikPanel</h1>
+      <small>Dashboard Admin</small>
+    </div>
+  </div>
+  <a href="/menu-admin.html" class="btn-menu">MENU</a>
+</div>
+
+<!-- SALDO -->
+<div class="balance-card">
+  <div class="label">PENDAPATAN ANDA</div>
+  <div class="amount" id="revenueMain">Rp0</div>
+  <div class="sub" id="revenueSub">Total dari pesanan selesai</div>
+  <div class="actions">
+    <button onclick="loadAll()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Refresh
+    </button>
+    <button onclick="location.href='/'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Order
+    </button>
+  </div>
+</div>
+
+<!-- TAB -->
+<div class="tab-row">
+  <div class="tab active" data-tab="orders" onclick="switchTab('orders')">Pesanan</div>
+  <div class="tab" data-tab="deposits" onclick="switchTab('deposits')">Deposit <span class="tab-badge" id="depositBadge">0</span></div>
+  <div class="tab" data-tab="tickets" onclick="switchTab('tickets')">Tiket <span class="tab-badge" id="ticketBadge">0</span></div>
+</div>
+
+<!-- TAB ORDER -->
+<div id="tab-orders" class="tab-content active">
+  <div class="stats-row">
+    <div class="stat-mini"><small>TOTAL PESANAN</small><b id="statTotal">0</b></div>
+    <div class="stat-mini orange"><small>PENDING</small><b id="statPending">0</b></div>
+    <div class="stat-mini green"><small>SELESAI</small><b id="statPaid">0</b></div>
+    <div class="stat-mini purple"><small>HARI INI</small><b id="statToday">0</b></div>
+  </div>
+  <div class="section-header"><h2>Daftar Pesanan</h2><span id="lastUpdate">-</span></div>
+  <div id="orderList"><div class="empty">Memuat data...</div></div>
+</div>
+
+<!-- TAB DEPOSIT -->
+<div id="tab-deposits" class="tab-content">
+  <div class="stats-row">
+    <div class="stat-mini orange"><small>PENDING</small><b id="depPending">0</b></div>
+    <div class="stat-mini green"><small>DIKONFIRMASI</small><b id="depConfirmed">0</b></div>
+    <div class="stat-mini red"><small>DITOLAK</small><b id="depRejected">0</b></div>
+    <div class="stat-mini purple"><small>SALDO MASUK</small><b id="depTotal">Rp0</b></div>
+  </div>
+  <div class="section-header"><h2>Permintaan Deposit</h2><span id="depUpdate">-</span></div>
+  <div id="depositList"><div class="empty">Memuat data...</div></div>
+</div>
+
+<!-- TAB TIKET -->
+<div id="tab-tickets" class="tab-content">
+  <div class="section-header"><h2>Tiket Komplain</h2><span id="tktUpdate">-</span></div>
+  <div id="ticketList"><div class="empty">Memuat data...</div></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="switchTab('orders')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ic"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Beranda
+  </div>
+  <div class="nav-item" onclick="switchTab('orders')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ic"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+    Pesanan
+  </div>
+  <div class="nav-item" onclick="switchTab('deposits')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ic"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+    Deposit
+  </div>
+  <div class="nav-item" onclick="switchTab('tickets')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ic"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Tiket
+  </div>
+  <div class="nav-item" onclick="location.href='/menu-admin.html'">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ic"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    Menu
+  </div>
+</div>
+
+<script src="admin.js"></script>
+<script>
+function logout() {
+  if (!confirm('Yakin ingin keluar dari panel admin?')) return;
+  localStorage.removeItem('user');
+  localStorage.removeItem('pendingDeposit');
+  location.href = '/login.html';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saldo - SuntikPanel</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.saldo-hero { background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-radius: 22px; padding: 26px; color: #fff; margin-bottom: 20px; text-align: center; box-shadow: 0 8px 24px rgba(37,99,235,.25); }
+.saldo-hero small { font-size: 12px; opacity: .8; letter-spacing: .5px; }
+.saldo-hero .amount { font-size: 36px; font-weight: 800; margin: 8px 0 4px; letter-spacing: -1px; }
+.saldo-hero .wa { font-size: 11px; opacity: .7; }
+.paket-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.paket-card { background: #fff; border-radius: 14px; padding: 18px 12px; text-align: center; cursor: pointer; border: 2px solid #e0ecfb; transition: all .15s; }
+.paket-card:hover, .paket-card:active { border-color: #2563eb; background: #f7faff; }
+.paket-card b { display: block; font-size: 16px; font-weight: 800; color: #2563eb; margin-bottom: 4px; }
+.paket-card small { font-size: 11px; color: #7a8a9a; }
+.custom-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.custom-row input { flex: 1; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #dbe6f2; background: #fff; font-size: 14px; }
+.custom-row button { padding: 0 20px; background: #2563eb; color: #fff; border: none; border-radius: 12px; font-weight: 800; font-size: 13px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="top-header">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div class="brand-text">
+      <h1>Saldo Saya</h1>
+      <small>SuntikPanel</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="/menu.html" class="btn-menu">MENU</a>
+  </div>
+</div>
+
+<a href="/" class="btn-back">← Kembali ke Beranda</a>
+
+<div class="saldo-hero">
+  <small>SALDO ANDA</small>
+  <div class="amount" id="saldoAmount">Rp 0</div>
+  <div class="wa" id="userWa">-</div>
+</div>
+
+<div class="section-title">
+  <h3>Pilih Nominal Deposit</h3>
+  <span>via QRIS</span>
+</div>
+
+<div class="paket-grid">
+  <div class="paket-card" onclick="buatDeposit(10000)"><b>Rp 10.000</b><small>Deposit</small></div>
+  <div class="paket-card" onclick="buatDeposit(25000)"><b>Rp 25.000</b><small>Deposit</small></div>
+  <div class="paket-card" onclick="buatDeposit(50000)"><b>Rp 50.000</b><small>Deposit</small></div>
+  <div class="paket-card" onclick="buatDeposit(100000)"><b>Rp 100.000</b><small>Deposit</small></div>
+</div>
+
+<div class="section-title"><h3>Nominal Lain</h3></div>
+
+<div class="custom-row">
+  <input type="number" id="customNominal" placeholder="Minimal 5.000" min="5000">
+  <button onclick="customDeposit()">Deposit</button>
+</div>
+
+<div class="footer">
+  <p><b>SuntikPanel</b> &middot; 2025</p>
+</div>
+
+<script>
+const user = JSON.parse(localStorage.getItem('user') || 'null');
+if (!user) location.href = '/login.html';
+document.getElementById('saldoAmount').textContent = 'Rp ' + (user.saldo || 0).toLocaleString('id-ID');
+document.getElementById('userWa').textContent = 'WA: ' + user.whatsapp;
+
+async function buatDeposit(nominal) {
+  if (!confirm('Deposit Rp ' + nominal.toLocaleString('id-ID') + '?')) return;
+  try {
+    const res = await fetch('/api/deposit/request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ whatsapp: user.whatsapp, nominal })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    localStorage.setItem('pendingDeposit', JSON.stringify({ depositId: data.depositId, nominal, waLink: data.waLink }));
+    location.href = '/deposit.html';
+  } catch (err) { alert('Gagal: ' + err.message); }
+}
+function customDeposit() {
+  const nominal = parseInt(document.getElementById('customNominal').value);
+  if (!nominal || nominal < 5000) { alert('Minimal Rp 5.000'); return; }
+  buatDeposit(nominal);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,527 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+
+require('dotenv').config();
+const provider = require('./lib/provider');
+const { startSync, syncOnce } = require('./lib/sync-orders');
+
+const app = express();
+const PORT = 3000;
+
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static('public'));
+
+const DB_FILE = path.join(__dirname, 'orders.json');
+const USERS_FILE = path.join(__dirname, 'users.json');
+const DEPOSITS_FILE = path.join(__dirname, 'deposits.json');
+const TICKETS_FILE = path.join(__dirname, 'tickets.json');
+const VOUCHERS_FILE = path.join(__dirname, 'vouchers.json');
+
+if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, '{}');
+if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '{}');
+if (!fs.existsSync(DEPOSITS_FILE)) fs.writeFileSync(DEPOSITS_FILE, '[]');
+if (!fs.existsSync(TICKETS_FILE)) fs.writeFileSync(TICKETS_FILE, '[]');
+if (!fs.existsSync(VOUCHERS_FILE)) fs.writeFileSync(VOUCHERS_FILE, '[]');
+
+function readJSON(file) { return JSON.parse(fs.readFileSync(file)); }
+function writeJSON(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
+
+const HARGA = {
+  tiktok:    { like:7000, view:6000, follower:55000, comment:35000, share:10000 },
+  instagram: { like:8000, view:7000, follower:35000, comment:42000, share:12000 },
+  facebook:  { like:10000, view:12000, follower:40000, comment:48000, share:15000 }
+};
+
+const DISKON_RESELLER = 0.15;
+const SATUAN = { like:1000, view:1000, follower:1000, comment:100, share:1000 };
+const MIN_ORDER = { like:100, view:100, follower:100, comment:50, share:100 };
+const MIN_CHARGE = 5000;
+const WA_ADMIN = '6289674642514';
+
+function hitungHarga(platform, layanan, jumlah, level) {
+  let hargaSatuan = HARGA[platform][layanan];
+  if (level === 'reseller') {
+    hargaSatuan = Math.round(hargaSatuan * (1 - DISKON_RESELLER));
+  }
+  const satuan = SATUAN[layanan];
+  let total = Math.ceil((jumlah / satuan) * hargaSatuan);
+  if (total < MIN_CHARGE) total = MIN_CHARGE;
+  return { hargaSatuan, total };
+}
+
+app.post('/api/register', (req, res) => {
+  try {
+    const { nama, whatsapp, password } = req.body;
+    if (!nama || !whatsapp || !password) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    if (password.length < 4) return res.status(400).json({ success: false, message: 'Password minimal 4 karakter' });
+    const users = readJSON(USERS_FILE);
+    const key = whatsapp.replace(/[^0-9]/g, '');
+    if (users[key]) return res.status(400).json({ success: false, message: 'Nomor WhatsApp sudah terdaftar' });
+    users[key] = { nama, whatsapp: key, password, saldo: 0, level: 'user', createdAt: new Date().toISOString() };
+    writeJSON(USERS_FILE, users);
+    res.json({ success: true, message: 'Registrasi berhasil', user: { nama, whatsapp: key, saldo: 0, level: 'user' } });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/login', (req, res) => {
+  try {
+    const { whatsapp, password } = req.body;
+    if (!whatsapp || !password) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    const users = readJSON(USERS_FILE);
+    const key = whatsapp.replace(/[^0-9]/g, '');
+    const user = users[key];
+    if (!user || user.password !== password) return res.status(400).json({ success: false, message: 'Nomor atau password salah' });
+    res.json({ success: true, message: 'Login berhasil', user: { nama: user.nama, whatsapp: user.whatsapp, saldo: user.saldo || 0, level: user.level || 'user' } });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/user/:whatsapp', (req, res) => {
+  try {
+    const key = req.params.whatsapp.replace(/[^0-9]/g, '');
+    const users = readJSON(USERS_FILE);
+    const user = users[key];
+    if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
+    res.json({ success: true, user: { nama: user.nama, whatsapp: user.whatsapp, saldo: user.saldo || 0, level: user.level || 'user' } });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/harga/:platform', (req, res) => {
+  const platform = req.params.platform;
+  if (!HARGA[platform]) return res.status(404).json({ success: false, message: 'Platform tidak ditemukan' });
+  res.json({ success: true, platform, harga: HARGA[platform], diskonReseller: DISKON_RESELLER });
+});
+
+app.get('/api/harga', (req, res) => {
+  res.json({ success: true, harga: HARGA, diskonReseller: DISKON_RESELLER });
+});
+
+app.post('/api/deposit/request', (req, res) => {
+  try {
+    const { whatsapp, nominal } = req.body;
+    if (!whatsapp || !nominal) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    if (nominal < 5000) return res.status(400).json({ success: false, message: 'Minimal deposit Rp 5.000' });
+    const key = whatsapp.replace(/[^0-9]/g, '');
+    const users = readJSON(USERS_FILE);
+    if (!users[key]) return res.status(400).json({ success: false, message: 'User tidak ditemukan' });
+    const deposits = readJSON(DEPOSITS_FILE);
+    const depositId = 'DEP' + Date.now();
+    deposits.push({ depositId, whatsapp: key, nominal, status: 'pending', createdAt: new Date().toISOString() });
+    writeJSON(DEPOSITS_FILE, deposits);
+    const pesan = 'Halo Admin SuntikPanel\n\nDeposit saldo:\nID: ' + depositId + '\nNama: ' + users[key].nama + '\nWA: ' + key + '\nNominal: Rp ' + nominal.toLocaleString('id-ID') + '\n\nBukti transfer saya lampirkan.';
+    res.json({ success: true, depositId, waLink: 'https://wa.me/' + WA_ADMIN + '?text=' + encodeURIComponent(pesan) });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/admin/deposits', (req, res) => {
+  const deposits = readJSON(DEPOSITS_FILE);
+  res.json({ success: true, deposits: deposits.reverse() });
+});
+
+app.post('/api/admin/deposit/confirm/:id', (req, res) => {
+  try {
+    const deposits = readJSON(DEPOSITS_FILE);
+    const idx = deposits.findIndex(d => d.depositId === req.params.id);
+    if (idx === -1) return res.status(404).json({ success: false, message: 'Deposit tidak ditemukan' });
+    if (deposits[idx].status === 'confirmed') return res.status(400).json({ success: false, message: 'Sudah dikonfirmasi' });
+    deposits[idx].status = 'confirmed';
+    deposits[idx].confirmedAt = new Date().toISOString();
+    writeJSON(DEPOSITS_FILE, deposits);
+    const users = readJSON(USERS_FILE);
+    if (!users[deposits[idx].whatsapp]) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
+    users[deposits[idx].whatsapp].saldo = (users[deposits[idx].whatsapp].saldo || 0) + deposits[idx].nominal;
+    writeJSON(USERS_FILE, users);
+    res.json({ success: true, message: 'Deposit dikonfirmasi', saldoBaru: users[deposits[idx].whatsapp].saldo });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/admin/deposit/reject/:id', (req, res) => {
+  try {
+    const deposits = readJSON(DEPOSITS_FILE);
+    const idx = deposits.findIndex(d => d.depositId === req.params.id);
+    if (idx === -1) return res.status(404).json({ success: false, message: 'Deposit tidak ditemukan' });
+    deposits[idx].status = 'rejected';
+    writeJSON(DEPOSITS_FILE, deposits);
+    res.json({ success: true, message: 'Deposit ditolak' });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/user/:whatsapp/deposits', (req, res) => {
+  try {
+    const key = req.params.whatsapp.replace(/[^0-9]/g, '');
+    const deposits = readJSON(DEPOSITS_FILE);
+    const list = deposits.filter(d => d.whatsapp === key).reverse();
+    res.json({ success: true, deposits: list });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/order', async (req, res) => {
+  try {
+    const { platform, layanan, link, jumlah, whatsapp, voucher } = req.body;
+    if (!platform || !layanan || !link || !jumlah || !whatsapp) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    if (!HARGA[platform] || !HARGA[platform][layanan]) return res.status(400).json({ success: false, message: 'Layanan tidak valid' });
+    const minOrder = MIN_ORDER[layanan] || 100;
+    if (jumlah < minOrder) return res.status(400).json({ success: false, message: 'Minimal order ' + minOrder });
+
+    const key = whatsapp.replace(/[^0-9]/g, '');
+    const users = readJSON(USERS_FILE);
+    const user = users[key];
+    if (!user) return res.status(400).json({ success: false, message: 'User tidak ditemukan' });
+
+    const level = user.level || 'user';
+    const { hargaSatuan, total: totalBeforeVoucher } = hitungHarga(platform, layanan, jumlah, level);
+    let total = totalBeforeVoucher;
+
+    let voucherUsed = null;
+    if (voucher) {
+      const vouchers = readJSON(VOUCHERS_FILE);
+      const v = vouchers.find(x => x.code.toUpperCase() === voucher.toUpperCase() && x.active);
+      if (!v) return res.status(400).json({ success: false, message: 'Voucher tidak valid' });
+      if (v.usedBy && v.usedBy.includes(key)) return res.status(400).json({ success: false, message: 'Voucher sudah pernah dipakai' });
+      if (v.type === 'percent') {
+        total = Math.max(MIN_CHARGE, Math.round(total * (1 - v.value / 100)));
+      } else if (v.type === 'fixed') {
+        total = Math.max(MIN_CHARGE, total - v.value);
+      }
+      voucherUsed = v.code;
+      v.usedBy = v.usedBy || [];
+      v.usedBy.push(key);
+      writeJSON(VOUCHERS_FILE, vouchers);
+    }
+
+    if ((user.saldo || 0) < total) return res.status(400).json({ success: false, message: 'Saldo tidak cukup. Butuh Rp ' + total.toLocaleString('id-ID') });
+
+    user.saldo -= total;
+    writeJSON(USERS_FILE, users);
+
+    const orderId = 'INV' + Date.now();
+    const order = {
+      orderId, platform, layanan, link, jumlah,
+      whatsapp: key, nama: user.nama, level,
+      hargaSatuan, total, voucher: voucherUsed,
+      status: 'pending',
+      provider_mode: provider.mode,
+      provider_order_id: null,
+      provider_status: null,
+      createdAt: new Date().toISOString()
+    };
+    const orders = readJSON(DB_FILE);
+    orders[orderId] = order;
+    writeJSON(DB_FILE, orders);
+
+    try {
+      const result = await provider.order({ platform, layanan, link, jumlah });
+      if (result.success) {
+        order.provider_order_id = result.provider_order_id;
+        order.provider_status = 'Pending';
+        order.status = 'processing';
+        order.sentAt = new Date().toISOString();
+      } else {
+        const users2 = readJSON(USERS_FILE);
+        if (users2[key]) {
+          users2[key].saldo = (users2[key].saldo || 0) + total;
+          writeJSON(USERS_FILE, users2);
+        }
+        order.status = 'refunded';
+        order.refundStatus = 'refunded';
+        order.refundReason = 'Gagal kirim ke provider: ' + (result.message || 'unknown');
+        order.refundedAt = new Date().toISOString();
+      }
+    } catch (err) {
+      console.error('[ORDER] Provider error:', err.message);
+      const users2 = readJSON(USERS_FILE);
+      if (users2[key]) {
+        users2[key].saldo = (users2[key].saldo || 0) + total;
+        writeJSON(USERS_FILE, users2);
+      }
+      order.status = 'refunded';
+      order.refundStatus = 'refunded';
+      order.refundReason = 'Provider error: ' + err.message;
+      order.refundedAt = new Date().toISOString();
+    }
+    writeJSON(DB_FILE, orders);
+
+    const saldoSisa = readJSON(USERS_FILE)[key].saldo;
+    const pesan = 'Halo Admin SuntikPanel\n\nOrder baru:\nID: ' + orderId + '\nNama: ' + user.nama + ' (' + level + ')\nWA: ' + key + '\nPlatform: ' + platform + '\nLayanan: ' + layanan + '\nLink: ' + link + '\nJumlah: ' + jumlah + '\nTotal: Rp ' + total.toLocaleString('id-ID') + '\nStatus: ' + order.status;
+    res.json({ success: true, orderId, total, saldoSisa, status: order.status, providerOrderId: order.provider_order_id, waLink: 'https://wa.me/' + WA_ADMIN + '?text=' + encodeURIComponent(pesan) });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/user/:whatsapp/orders', (req, res) => {
+  try {
+    const key = req.params.whatsapp.replace(/[^0-9]/g, '');
+    const orders = readJSON(DB_FILE);
+    const list = Object.values(orders).filter(o => o.whatsapp === key).reverse();
+    res.json({ success: true, orders: list });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/order/:id/report-fail', (req, res) => {
+  try {
+    const { alasan } = req.body;
+    const orders = readJSON(DB_FILE);
+    const order = orders[req.params.id];
+    if (!order) return res.status(404).json({ success: false, message: 'Order tidak ditemukan' });
+    if (order.refundStatus === 'pending') return res.status(400).json({ success: false, message: 'Sudah dilaporkan' });
+    if (order.status === 'refunded') return res.status(400).json({ success: false, message: 'Sudah direfund' });
+
+    order.refundStatus = 'pending';
+    order.refundReason = alasan || 'Order tidak diproses';
+    order.refundAt = new Date().toISOString();
+    writeJSON(DB_FILE, orders);
+
+    const users = readJSON(USERS_FILE);
+    const user = users[order.whatsapp];
+    const pesan = 'Halo Admin SuntikPanel\n\nLaporan order gagal:\nID: ' + order.orderId + '\nNama: ' + (user ? user.nama : '-') + '\nWA: ' + order.whatsapp + '\nPlatform: ' + order.platform + '\nLayanan: ' + order.layanan + '\nJumlah: ' + order.jumlah + '\nTotal: Rp ' + order.total.toLocaleString('id-ID') + '\n\nAlasan: ' + (alasan || '-');
+
+    res.json({ success: true, message: 'Laporan terkirim', waLink: 'https://wa.me/' + WA_ADMIN + '?text=' + encodeURIComponent(pesan) });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/admin/order/refund/:id', (req, res) => {
+  try {
+    const orders = readJSON(DB_FILE);
+    const order = orders[req.params.id];
+    if (!order) return res.status(404).json({ success: false, message: 'Order tidak ditemukan' });
+    if (order.refundStatus === 'refunded') return res.status(400).json({ success: false, message: 'Sudah direfund' });
+
+    const users = readJSON(USERS_FILE);
+    if (!users[order.whatsapp]) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
+    users[order.whatsapp].saldo = (users[order.whatsapp].saldo || 0) + order.total;
+    writeJSON(USERS_FILE, users);
+
+    order.refundStatus = 'refunded';
+    order.status = 'refunded';
+    order.refundedAt = new Date().toISOString();
+    writeJSON(DB_FILE, orders);
+
+    res.json({ success: true, message: 'Refund berhasil', saldoBaru: users[order.whatsapp].saldo });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/admin/order/refund-reject/:id', (req, res) => {
+  try {
+    const orders = readJSON(DB_FILE);
+    const order = orders[req.params.id];
+    if (!order) return res.status(404).json({ success: false, message: 'Order tidak ditemukan' });
+    order.refundStatus = 'rejected';
+    writeJSON(DB_FILE, orders);
+    res.json({ success: true, message: 'Refund ditolak' });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/user/:whatsapp/stats', (req, res) => {
+  try {
+    const key = req.params.whatsapp.replace(/[^0-9]/g, '');
+    const orders = Object.values(readJSON(DB_FILE)).filter(o => o.whatsapp === key);
+    const deposits = readJSON(DEPOSITS_FILE).filter(d => d.whatsapp === key && d.status === 'confirmed');
+    const totalOrder = orders.length;
+    const totalSpent = orders.reduce((s, o) => s + o.total, 0);
+    const totalDeposit = deposits.reduce((s, d) => s + d.nominal, 0);
+    const totalPending = orders.filter(o => o.status === 'pending').length;
+    const totalPaid = orders.filter(o => o.status === 'paid').length;
+    const totalRefund = orders.filter(o => o.status === 'refunded').reduce((s, o) => s + o.total, 0);
+    const byPlatform = {};
+    orders.forEach(o => { byPlatform[o.platform] = (byPlatform[o.platform] || 0) + 1; });
+    const last7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const k = d.toDateString();
+      const count = orders.filter(o => new Date(o.createdAt).toDateString() === k).length;
+      last7.push({ date: d.toLocaleDateString('id-ID', { day:'2-digit', month:'short' }), count });
+    }
+    res.json({ success: true, stats: { totalOrder, totalSpent, totalDeposit, totalPending, totalPaid, totalRefund, byPlatform, last7 } });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/confirm/:id', (req, res) => {
+  const orders = readJSON(DB_FILE);
+  if (!orders[req.params.id]) return res.status(404).json({ success: false, message: 'Order tidak ditemukan' });
+  orders[req.params.id].status = 'paid';
+  orders[req.params.id].paidAt = new Date().toISOString();
+  writeJSON(DB_FILE, orders);
+  res.json({ success: true, message: 'Order ditandai selesai' });
+});
+
+app.get('/api/admin/orders', (req, res) => {
+  const orders = readJSON(DB_FILE);
+  res.json({ success: true, orders: Object.values(orders).reverse() });
+});
+
+app.get('/api/admin/users', (req, res) => {
+  const users = readJSON(USERS_FILE);
+  const list = Object.values(users).map(u => ({ nama: u.nama, whatsapp: u.whatsapp, saldo: u.saldo || 0, level: u.level || 'user', createdAt: u.createdAt }));
+  res.json({ success: true, users: list.reverse() });
+});
+
+app.post('/api/admin/user/set-level', (req, res) => {
+  try {
+    const { whatsapp, level } = req.body;
+    if (!whatsapp || !level) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    if (!['user', 'reseller'].includes(level)) return res.status(400).json({ success: false, message: 'Level tidak valid' });
+    const users = readJSON(USERS_FILE);
+    const key = whatsapp.replace(/[^0-9]/g, '');
+    if (!users[key]) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
+    users[key].level = level;
+    writeJSON(USERS_FILE, users);
+    res.json({ success: true, message: 'Level diubah ke ' + level });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/ticket/create', (req, res) => {
+  try {
+    const { whatsapp, kategori, subjek, pesan } = req.body;
+    if (!whatsapp || !kategori || !subjek || !pesan) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    const key = whatsapp.replace(/[^0-9]/g, '');
+    const users = readJSON(USERS_FILE);
+    if (!users[key]) return res.status(400).json({ success: false, message: 'User tidak ditemukan' });
+    const tickets = readJSON(TICKETS_FILE);
+    const ticketId = 'TKT' + Date.now();
+    tickets.push({ ticketId, whatsapp: key, nama: users[key].nama, kategori, subjek, pesan, status: 'open', replies: [], createdAt: new Date().toISOString() });
+    writeJSON(TICKETS_FILE, tickets);
+    const waPesan = 'Tiket Komplain Baru\n\nID: ' + ticketId + '\nNama: ' + users[key].nama + '\nWA: ' + key + '\nKategori: ' + kategori + '\nSubjek: ' + subjek + '\n\nPesan:\n' + pesan;
+    res.json({ success: true, ticketId, waLink: 'https://wa.me/' + WA_ADMIN + '?text=' + encodeURIComponent(waPesan) });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/ticket/user/:whatsapp', (req, res) => {
+  const key = req.params.whatsapp.replace(/[^0-9]/g, '');
+  const tickets = readJSON(TICKETS_FILE);
+  res.json({ success: true, tickets: tickets.filter(t => t.whatsapp === key).reverse() });
+});
+
+app.get('/api/ticket/:id', (req, res) => {
+  const tickets = readJSON(TICKETS_FILE);
+  const t = tickets.find(t => t.ticketId === req.params.id);
+  if (!t) return res.status(404).json({ success: false, message: 'Tiket tidak ditemukan' });
+  res.json({ success: true, ticket: t });
+});
+
+app.post('/api/ticket/:id/reply', (req, res) => {
+  const { sender, pesan } = req.body;
+  if (!sender || !pesan) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+  const tickets = readJSON(TICKETS_FILE);
+  const idx = tickets.findIndex(t => t.ticketId === req.params.id);
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Tiket tidak ditemukan' });
+  tickets[idx].replies.push({ sender, pesan, at: new Date().toISOString() });
+  if (sender === 'admin') tickets[idx].status = 'answered';
+  writeJSON(TICKETS_FILE, tickets);
+  res.json({ success: true, message: 'Balasan terkirim' });
+});
+
+app.post('/api/ticket/:id/close', (req, res) => {
+  const tickets = readJSON(TICKETS_FILE);
+  const idx = tickets.findIndex(t => t.ticketId === req.params.id);
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Tiket tidak ditemukan' });
+  tickets[idx].status = 'closed';
+  writeJSON(TICKETS_FILE, tickets);
+  res.json({ success: true, message: 'Tiket ditutup' });
+});
+
+app.get('/api/admin/tickets', (req, res) => {
+  const tickets = readJSON(TICKETS_FILE);
+  res.json({ success: true, tickets: tickets.reverse() });
+});
+
+app.post('/api/voucher/check', (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ success: false, message: 'Kode kosong' });
+    const vouchers = readJSON(VOUCHERS_FILE);
+    const v = vouchers.find(x => x.code.toUpperCase() === code.toUpperCase() && x.active);
+    if (!v) return res.status(404).json({ success: false, message: 'Voucher tidak valid' });
+    res.json({ success: true, voucher: { code: v.code, type: v.type, value: v.value, description: v.description } });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/admin/vouchers', (req, res) => {
+  const vouchers = readJSON(VOUCHERS_FILE);
+  res.json({ success: true, vouchers: vouchers.reverse() });
+});
+
+app.post('/api/admin/voucher/create', (req, res) => {
+  try {
+    const { code, type, value, description } = req.body;
+    if (!code || !type || !value) return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    if (!['percent', 'fixed'].includes(type)) return res.status(400).json({ success: false, message: 'Tipe tidak valid' });
+    const vouchers = readJSON(VOUCHERS_FILE);
+    if (vouchers.find(v => v.code.toUpperCase() === code.toUpperCase())) return res.status(400).json({ success: false, message: 'Kode sudah ada' });
+    vouchers.push({ code: code.toUpperCase(), type, value: parseInt(value), description: description || '', active: true, usedBy: [], createdAt: new Date().toISOString() });
+    writeJSON(VOUCHERS_FILE, vouchers);
+    res.json({ success: true, message: 'Voucher dibuat' });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/admin/voucher/toggle/:code', (req, res) => {
+  const vouchers = readJSON(VOUCHERS_FILE);
+  const idx = vouchers.findIndex(v => v.code === req.params.code);
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Voucher tidak ditemukan' });
+  vouchers[idx].active = !vouchers[idx].active;
+  writeJSON(VOUCHERS_FILE, vouchers);
+  res.json({ success: true, message: 'Voucher ' + (vouchers[idx].active ? 'aktif' : 'nonaktif') });
+});
+
+app.post('/api/admin/sync-orders', async (req, res) => {
+  try {
+    const result = await syncOnce();
+    res.json({ success: true, checked: result.checked, updated: result.updated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Sync error: ' + err.message });
+  }
+});
+
+app.get('/api/provider/balance', async (req, res) => {
+  try {
+    const b = await provider.balance();
+    res.json({ success: true, mode: provider.mode, ...b });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/provider/services', async (req, res) => {
+  try {
+    const s = await provider.services();
+    res.json({ success: true, mode: provider.mode, ...s });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/provider/info', (req, res) => {
+  res.json({ success: true, mode: provider.mode, services: require('./lib/services-map.json') });
+});
+
+const START_TIME = Date.now();
+app.get('/api/status', (req, res) => {
+  const orders = Object.values(readJSON(DB_FILE));
+  const users = readJSON(USERS_FILE);
+  const deposits = readJSON(DEPOSITS_FILE);
+  const uptime = Math.floor((Date.now() - START_TIME) / 1000);
+  const hours = Math.floor(uptime / 3600);
+  const minutes = Math.floor((uptime % 3600) / 60);
+  res.json({
+    success: true,
+    status: 'online',
+    uptime: { seconds: uptime, text: hours + 'j ' + minutes + 'm' },
+    stats: {
+      totalUsers: Object.keys(users).length,
+      totalOrders: orders.length,
+      totalPendingOrders: orders.filter(o => o.status === 'pending').length,
+      totalDeposits: deposits.filter(d => d.status === 'confirmed').length
+    },
+    provider: { mode: provider.mode },
+    serverTime: new Date().toISOString()
+  });
+});
+
+startSync();
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('Server berjalan di http://localhost:' + PORT);
+  console.log('[PROVIDER] Mode:', provider.mode);
+  console.log('[SYNC] Auto cek status order tiap ' + (process.env.SYNC_INTERVAL_MINUTES || 5) + ' menit');
+});

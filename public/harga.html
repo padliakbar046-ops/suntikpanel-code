@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daftar Harga - SuntikPanel</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.harga-tab {
+  display: flex;
+  background: #fff;
+  border-radius: 14px;
+  padding: 5px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(30,60,120,.06);
+}
+.harga-tab button {
+  flex: 1;
+  padding: 11px 8px;
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: #7a8a9a;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.harga-tab button.active {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(37,99,235,.35);
+}
+
+.harga-list {
+  background: #fff;
+  border-radius: 16px;
+  padding: 6px;
+  margin-bottom: 16px;
+}
+.harga-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 14px;
+  border-bottom: 1px solid #f0f4f8;
+}
+.harga-item:last-child { border-bottom: none; }
+.hi-left b {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1a2a3a;
+  margin-bottom: 2px;
+}
+.hi-left small {
+  font-size: 10px;
+  color: #8a9aaa;
+  font-weight: 600;
+}
+.hi-right {
+  text-align: right;
+}
+.hi-right b {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #2563eb;
+  margin-bottom: 2px;
+}
+.hi-right small {
+  font-size: 10px;
+  color: #8a9aaa;
+}
+
+.harga-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1a2a3a;
+  margin: 20px 4px 10px;
+}
+
+.note-card {
+  background: #fff8e6;
+  border-left: 4px solid #f59e0b;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 11px;
+  color: #7a5a10;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+.note-card b { color: #d97706; }
+
+.btn-order-cta {
+  display: block;
+  text-align: center;
+  background: #2563eb;
+  color: #fff;
+  padding: 15px;
+  border-radius: 14px;
+  text-decoration: none;
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.btn-order-cta:hover { background: #1e40af; }
+</style>
+</head>
+<body>
+
+<div class="top-header">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div>
+      <h1>Daftar Harga</h1>
+      <small>SuntikPanel</small>
+    </div>
+  </div>
+  <a href="/" class="btn-saldo">Order</a>
+</div>
+
+<div class="harga-tab">
+  <button class="active" data-tab="tiktok" onclick="pilihTab('tiktok')">TikTok</button>
+  <button data-tab="instagram" onclick="pilihTab('instagram')">Instagram</button>
+  <button data-tab="facebook" onclick="pilihTab('facebook')">Facebook</button>
+</div>
+
+<div id="list-tiktok" class="harga-list"></div>
+<div id="list-instagram" class="harga-list" style="display:none"></div>
+<div id="list-facebook" class="harga-list" style="display:none"></div>
+
+<div class="note-card">
+  <b>Catatan:</b><br>
+  • Minimal order 100 pcs (comment 50 pcs)<br>
+  • Minimum transaksi Rp 5.000<br>
+  • Semua pesanan diproses otomatis<br>
+  • Pembayaran via QRIS atau saldo
+</div>
+
+<a href="/" class="btn-order-cta">Mulai Order Sekarang</a>
+
+<div class="footer">
+  <p><b>SuntikPanel</b> &middot; 2025</p>
+  <p>WhatsApp: <a href="https://wa.me/6289674642514">0896-7464-2514</a></p>
+</div>
+
+<script>
+// Ambil harga dari server
+const PRICE_CACHE = {};
+
+async function loadHarga(platform) {
+  if (PRICE_CACHE[platform]) return PRICE_CACHE[platform];
+  try {
+    const res = await fetch('/api/harga/' + platform);
+    const data = await res.json();
+    PRICE_CACHE[platform] = data.harga;
+    return data.harga;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
+function renderHarga(platform, harga) {
+  const container = document.getElementById('list-' + platform);
+  if (!harga) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:#9aa8b6;font-size:12px">Gagal memuat harga</div>';
+    return;
+  }
+
+  const layanan = [
+    { key: 'like',     label: 'Like',     satuan: 'per 1.000' },
+    { key: 'view',     label: 'View',     satuan: 'per 1.000' },
+    { key: 'follower', label: 'Follower', satuan: 'per 1.000' },
+    { key: 'share',    label: 'Share',    satuan: 'per 1.000' }
+  ];
+
+  container.innerHTML = layanan.map(l => {
+    const h = harga[l.key];
+    if (!h) return '';
+    return '<div class="harga-item">' +
+      '<div class="hi-left">' +
+        '<b>' + l.label + '</b>' +
+        '<small>' + l.satuan + '</small>' +
+      '</div>' +
+      '<div class="hi-right">' +
+        '<b>Rp ' + h.toLocaleString('id-ID') + '</b>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function pilihTab(platform) {
+  document.querySelectorAll('.harga-tab button').forEach(b => b.classList.remove('active'));
+  document.querySelector('.harga-tab button[data-tab="' + platform + '"]').classList.add('active');
+
+  ['tiktok', 'instagram', 'facebook'].forEach(p => {
+    document.getElementById('list-' + p).style.display = (p === platform) ? 'block' : 'none';
+  });
+
+  const harga = await loadHarga(platform);
+  renderHarga(platform, harga);
+}
+
+// Load awal
+(async () => {
+  const harga = await loadHarga('tiktok');
+  renderHarga('tiktok', harga);
+})();
+</script>
+</body>
+</html>

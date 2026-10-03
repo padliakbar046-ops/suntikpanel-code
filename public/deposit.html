@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instruksi Deposit - SuntikPanel</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="top-header">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div class="brand-text">
+      <h1>Deposit Saldo</h1>
+      <small>SuntikPanel</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="/menu.html" class="btn-menu">MENU</a>
+  </div>
+</div>
+
+<a href="/saldo.html" class="btn-back">← Kembali ke Saldo</a>
+
+<div class="pay-header">
+  <div class="pay-icon"><svg viewBox="0 0 24 24" style="width:42px;height:42px;margin:0 auto"><rect x="2" y="5" width="20" height="14" rx="2" fill="rgba(255,255,255,.15)" stroke="#fff" stroke-width="1.5"/><line x1="2" y1="10" x2="22" y2="10" stroke="#fff" stroke-width="1.5"/></svg></div>
+  <h3>Scan QRIS untuk Isi Saldo</h3>
+  <p>Selesaikan pembayaran sesuai nominal deposit</p>
+</div>
+
+<div class="total-card">
+  <small>NOMINAL DEPOSIT</small>
+  <div class="total-amount" id="depositNominal">Rp 0</div>
+  <div class="order-id-row">
+    <span>ID Deposit</span>
+    <b id="depositIdText">-</b>
+  </div>
+</div>
+
+<div class="qr-card">
+  <p class="qr-info">Scan QR di bawah dengan aplikasi pembayaran apapun yang mendukung QRIS: DANA, OVO, GoPay, ShopeePay, LinkAja, atau Mobile Banking.</p>
+  <div class="qr-wrap"><img src="qris.png" alt="QRIS" onclick="zoomQR()"></div>
+  <p class="qr-hint">Ketuk QR untuk memperbesar</p>
+</div>
+
+<div class="steps-card">
+  <h4>Langkah Deposit</h4>
+  <div class="step"><div class="step-num">1</div><div class="step-text">Screenshot atau simpan QR di atas</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-text">Buka aplikasi e-wallet atau m-banking</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-text">Pilih menu Scan QR atau QRIS</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-text">Masukkan nominal sesuai deposit</div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-text">Konfirmasi &amp; selesaikan pembayaran</div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-text">Kirim bukti ke WhatsApp admin</div></div>
+</div>
+
+<a id="waBtn" class="btn-wa" target="_blank">Kirim Bukti ke WhatsApp</a>
+
+<div class="waiting-card">
+  <div class="waiting-icon"><svg viewBox="0 0 24 24" style="width:28px;height:28px"><circle cx="12" cy="12" r="10" fill="none" stroke="#f59e0b" stroke-width="2"/><path d="M12 6v6l4 2" stroke="#f59e0b" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+  <div class="waiting-text"><b>Menunggu Konfirmasi Admin</b><small>Setelah kirim bukti, admin akan verifikasi dalam <b>maksimal 30 menit</b>. Saldo otomatis masuk setelah dikonfirmasi.</small></div>
+</div>
+
+<button class="btn-secondary" onclick="location.href='/saldo.html'">Kembali ke Saldo</button>
+
+<div class="footer">
+  <p><b>SuntikPanel</b> &middot; 2025</p>
+  <p>WhatsApp: <a href="https://wa.me/6289674642514">0896-7464-2514</a></p>
+</div>
+
+<div id="modal" class="modal hidden" onclick="closeZoom()">
+  <img src="qris.png" alt="QRIS">
+</div>
+
+<script>
+const pending = JSON.parse(localStorage.getItem('pendingDeposit') || 'null');
+if (!pending) location.href = '/saldo.html';
+document.getElementById('depositNominal').textContent = 'Rp ' + pending.nominal.toLocaleString('id-ID');
+document.getElementById('depositIdText').textContent = pending.depositId;
+document.getElementById('waBtn').href = pending.waLink;
+function zoomQR() { document.getElementById('modal').classList.remove('hidden'); }
+function closeZoom() { document.getElementById('modal').classList.add('hidden'); }
+</script>
+</body>
+</html>

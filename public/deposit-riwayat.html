@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riwayat Deposit - SuntikPanel</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.dep-item {
+  background: #fff; border-radius: 14px; padding: 14px;
+  margin-bottom: 10px; border-left: 4px solid #f59e0b;
+  box-shadow: 0 2px 8px rgba(30,60,120,.06);
+}
+.dep-item.confirmed { border-left-color: #10b981; }
+.dep-item.rejected { border-left-color: #ef4444; opacity: .8; }
+.di-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #eef3f8; }
+.di-head b { font-size: 12px; }
+.di-head .badge { padding: 3px 10px; border-radius: 20px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.badge.pending { background: #fef3c7; color: #92400e; }
+.badge.confirmed { background: #d1fae5; color: #065f46; }
+.badge.rejected { background: #fee2e2; color: #991b1b; }
+.di-row { font-size: 12px; color: #4a5a6a; margin-bottom: 4px; display: flex; justify-content: space-between; }
+.di-row b { color: #1a2a3a; }
+body.dark-mode .dep-item { background: #1a2332; }
+body.dark-mode .di-head { border-bottom-color: #2a3548; }
+body.dark-mode .di-head b { color: #e8eef7; }
+body.dark-mode .di-row { color: #93a5bb; }
+body.dark-mode .di-row b { color: #e8eef7; }
+</style>
+</head>
+<body>
+
+<div class="top-header">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div class="brand-text">
+      <h1>Riwayat Deposit</h1>
+      <small>SuntikPanel</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button type="button" class="btn-theme" onclick="toggleTheme()"><span id="themeIcon">☾</span></button>
+    <a href="/menu.html" class="btn-menu">MENU</a>
+  </div>
+</div>
+
+<a href="/saldo.html" class="btn-back" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;color:#2563eb;border-radius:12px;text-decoration:none;font-size:12px;font-weight:800;margin-bottom:16px;box-shadow:0 2px 8px rgba(30,60,120,.06)">← Kembali ke Saldo</a>
+
+<div id="depositList">
+  <div style="background:#fff;border-radius:14px;padding:30px;text-align:center;color:#9aa8b6;font-size:12px">Memuat...</div>
+</div>
+
+<div class="footer">
+  <p><b>SuntikPanel</b> &middot; 2025</p>
+</div>
+
+<script src="app.js"></script>
+<script>
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  if (!user) location.href = '/login.html';
+
+  setTimeout(function() {
+    const icon = document.getElementById('themeIcon');
+    const theme = localStorage.getItem('theme') || 'light';
+    if (icon) icon.textContent = theme === 'dark' ? '☀' : '☾';
+  }, 50);
+
+  function formatTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/api/user/' + user.whatsapp + '/deposits');
+      const data = await res.json();
+      const list = document.getElementById('depositList');
+      if (!data.deposits || data.deposits.length === 0) {
+        list.innerHTML = '<div style="background:#fff;border-radius:14px;padding:40px 20px;text-align:center;color:#9aa8b6;font-size:12px">Belum ada deposit</div>';
+        return;
+      }
+      list.innerHTML = '';
+      data.deposits.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'dep-item ' + d.status;
+        div.innerHTML = '<div class="di-head"><b>' + d.depositId + '</b><span class="badge ' + d.status + '">' + d.status + '</span></div>' +
+          '<div class="di-row"><span>Nominal</span><b>Rp ' + d.nominal.toLocaleString('id-ID') + '</b></div>' +
+          '<div class="di-row"><span>Waktu</span><b>' + formatTime(d.createdAt) + '</b></div>' +
+          (d.confirmedAt ? '<div class="di-row"><span>Dikonfirmasi</span><b>' + formatTime(d.confirmedAt) + '</b></div>' : '');
+        list.appendChild(di);
+      });
+    } catch (err) { console.error(err); }
+  }
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riwayat Order - SuntikPanel</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.order-item { background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 10px; border-left: 4px solid #f59e0b; box-shadow: 0 2px 8px rgba(30,60,120,.06); }
+.order-item.paid { border-left-color: #10b981; }
+.oi-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #eef3f8; }
+.oi-head b { font-size: 12px; }
+.oi-head .badge { padding: 3px 10px; border-radius: 20px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.badge.pending { background: #fef3c7; color: #92400e; }
+.badge.paid { background: #d1fae5; color: #065f46; }
+.oi-row { font-size: 12px; color: #4a5a6a; margin-bottom: 4px; display: flex; justify-content: space-between; }
+.oi-row b { color: #1a2a3a; }
+</style>
+</head>
+<body>
+
+<div class="top-header">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div class="brand-text">
+      <h1>Riwayat Order</h1>
+      <small>SuntikPanel</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="/menu.html" class="btn-menu">MENU</a>
+  </div>
+</div>
+
+<a href="/" class="btn-back">← Kembali ke Beranda</a>
+
+<div class="section-title">
+  <h3>Daftar Order</h3>
+  <span id="updateTime">-</span>
+</div>
+
+<div id="riwayatList">
+  <div style="background:#fff;border-radius:14px;padding:30px;text-align:center;color:#9aa8b6;font-size:12px">Memuat...</div>
+</div>
+
+<div class="footer">
+  <p><b>SuntikPanel</b> &middot; 2025</p>
+</div>
+
+<script>
+const user = JSON.parse(localStorage.getItem('user') || 'null');
+if (!user) location.href = '/login.html';
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+}
+
+async function load() {
+  try {
+    const res = await fetch('/api/user/' + user.whatsapp + '/orders');
+    const data = await res.json();
+    const list = document.getElementById('riwayatList');
+    document.getElementById('updateTime').textContent = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+    if (!data.orders || data.orders.length === 0) {
+      list.innerHTML = '<div style="background:#fff;border-radius:14px;padding:40px 20px;text-align:center;color:#9aa8b6;font-size:12px">Belum ada order</div>';
+      return;
+    }
+    list.innerHTML = '';
+    data.orders.forEach(o => {
+      const div = document.createElement('div');
+      div.className = 'order-item ' + o.status;
+      div.innerHTML = '<div class="oi-head"><b>' + o.orderId + '</b><span class="badge ' + o.status + '">' + o.status + '</span></div>' +
+        '<div class="oi-row"><span>Platform</span><b>' + o.platform + '</b></div>' +
+        '<div class="oi-row"><span>Layanan</span><b>' + o.layanan + '</b></div>' +
+        '<div class="oi-row"><span>Jumlah</span><b>' + o.jumlah.toLocaleString('id-ID') + '</b></div>' +
+        '<div class="oi-row"><span>Total</span><b>Rp ' + o.total.toLocaleString('id-ID') + '</b></div>' +
+        '<div class="oi-row"><span>Waktu</span><b>' + formatTime(o.createdAt) + '</b></div>';
+      list.appendChild(div);
+    });
+  } catch (err) { console.error(err); }
+}
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>

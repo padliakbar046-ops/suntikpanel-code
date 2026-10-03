@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiket Komplain - SuntikPanel</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.tiket-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.tiket-item { background: #fff; border-radius: 14px; padding: 14px; border-left: 4px solid #f59e0b; box-shadow: 0 2px 8px rgba(30,60,120,.06); cursor: pointer; }
+.tiket-item.answered { border-left-color: #3b82f6; }
+.tiket-item.closed { border-left-color: #10b981; }
+.ti-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.ti-id { font-size: 11px; font-weight: 800; color: #2563eb; }
+.ti-badge { padding: 3px 8px; border-radius: 10px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.ti-badge.open { background: #fef3c7; color: #92400e; }
+.ti-badge.answered { background: #dbeafe; color: #1e40af; }
+.ti-badge.closed { background: #d1fae5; color: #065f46; }
+.ti-subjek { font-size: 13px; font-weight: 800; color: #1a2a3a; margin-bottom: 4px; }
+.ti-meta { font-size: 10px; color: #8a9aaa; }
+.form-tiket { background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 2px 12px rgba(30,60,120,.06); margin-bottom: 14px; }
+.form-tiket h4 { font-size: 14px; font-weight: 800; margin-bottom: 14px; color: #1a2a3a; }
+.detail-modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 999; display: flex; align-items: flex-end; }
+.detail-content { background: #eef3f8; width: 100%; max-height: 92vh; border-radius: 22px 22px 0 0; padding: 20px 16px 30px; overflow-y: auto; }
+.dc-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.dc-head h3 { font-size: 16px; font-weight: 800; }
+.dc-close { width: 32px; height: 32px; background: #fff; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
+.chat-box { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; max-height: 50vh; overflow-y: auto; padding: 4px; }
+.chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 12px; line-height: 1.5; }
+.chat-bubble.user { background: #2563eb; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+.chat-bubble.admin { background: #fff; color: #1a2a3a; align-self: flex-start; border-bottom-left-radius: 4px; }
+.chat-meta { font-size: 9px; opacity: .7; margin-top: 4px; }
+.reply-form { display: flex; gap: 8px; }
+.reply-form input { flex: 1; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #dbe6f2; background: #fff; font-size: 13px; }
+.reply-form button { padding: 0 20px; background: #2563eb; color: #fff; border: none; border-radius: 12px; font-weight: 800; font-size: 12px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="top-header">
+  <div class="brand">
+    <img src="logo.png" class="logo-img" alt="Logo" onerror="this.style.display='none'">
+    <div class="brand-text">
+      <h1>Tiket Komplain</h1>
+      <small>SuntikPanel</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="/menu.html" class="btn-menu">MENU</a>
+  </div>
+</div>
+
+<a href="/" class="btn-back">← Kembali ke Beranda</a>
+
+<div class="form-tiket">
+  <h4>Buat Tiket Baru</h4>
+  <div class="form-row">
+    <label>Kategori</label>
+    <select id="kategori">
+      <option value="order">Masalah Order</option>
+      <option value="deposit">Masalah Deposit</option>
+      <option value="saldo">Masalah Saldo</option>
+      <option value="lainnya">Lainnya</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label>Subjek</label>
+    <input type="text" id="subjek" placeholder="Ringkasan masalah">
+  </div>
+  <div class="form-row">
+    <label>Pesan</label>
+    <textarea id="pesan" rows="4" placeholder="Jelaskan masalah kamu secara detail..."></textarea>
+  </div>
+  <button class="btn-primary" onclick="kirimTiket()">Kirim Tiket</button>
+</div>
+
+<div class="section-title"><h3>Riwayat Tiket</h3></div>
+
+<div id="tiketList" class="tiket-list">
+  <div style="background:#fff;border-radius:14px;padding:30px;text-align:center;color:#9aa8b6;font-size:12px">Memuat...</div>
+</div>
+
+<div class="footer">
+  <p><b>SuntikPanel</b> &middot; 2025</p>
+</div>
+
+<div id="detailModal" class="detail-modal hidden">
+  <div class="detail-content">
+    <div class="dc-head">
+      <h3 id="dcTitle">Detail Tiket</h3>
+      <button class="dc-close" onclick="closeDetail()">✕</button>
+    </div>
+    <div id="dcInfo"></div>
+    <div class="chat-box" id="chatBox"></div>
+    <div class="reply-form">
+      <input type="text" id="replyInput" placeholder="Tulis balasan...">
+      <button onclick="kirimBalasan()">Kirim</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const user = JSON.parse(localStorage.getItem('user') || 'null');
+if (!user) location.href = '/login.html';
+
+let currentTicket = null;
+
+async function kirimTiket() {
+  const kategori = document.getElementById('kategori').value;
+  const subjek = document.getElementById('subjek').value.trim();
+  const pesan = document.getElementById('pesan').value.trim();
+  if (!subjek || !pesan) { alert('Isi subjek dan pesan'); return; }
+  try {
+    const res = await fetch('/api/ticket/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ whatsapp: user.whatsapp, kategori, subjek, pesan })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    alert('Tiket terkirim!\nID: ' + data.ticketId);
+    document.getElementById('subjek').value = '';
+    document.getElementById('pesan').value = '';
+    loadTiket();
+  } catch (err) { alert('Gagal: ' + err.message); }
+}
+
+async function loadTiket() {
+  try {
+    const res = await fetch('/api/ticket/user/' + user.whatsapp);
+    const data = await res.json();
+    const list = document.getElementById('tiketList');
+    if (!data.tickets || data.tickets.length === 0) {
+      list.innerHTML = '<div style="background:#fff;border-radius:14px;padding:30px;text-align:center;color:#9aa8b6;font-size:12px">Belum ada tiket</div>';
+      return;
+    }
+    list.innerHTML = '';
+    data.tickets.forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'tiket-item ' + t.status;
+      div.onclick = () => openDetail(t.ticketId);
+      div.innerHTML = '<div class="ti-head"><span class="ti-id">' + t.ticketId + '</span><span class="ti-badge ' + t.status + '">' + t.status + '</span></div>' +
+        '<div class="ti-subjek">' + t.subjek + '</div>' +
+        '<div class="ti-meta">' + t.kategori + ' · ' + new Date(t.createdAt).toLocaleString('id-ID') + '</div>';
+      list.appendChild(div);
+    });
+  } catch (err) { console.error(err); }
+}
+
+async function openDetail(id) {
+  try {
+    const res = await fetch('/api/ticket/' + id);
+    const data = await res.json();
+    if (!data.success) return;
+    currentTicket = data.ticket;
+    document.getElementById('dcTitle').textContent = data.ticket.subjek;
+    document.getElementById('dcInfo').innerHTML = '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:14px;font-size:12px">' +
+      '<div style="margin-bottom:6px"><b>ID:</b> ' + data.ticket.ticketId + '</div>' +
+      '<div style="margin-bottom:6px"><b>Kategori:</b> ' + data.ticket.kategori + '</div>' +
+      '<div><b>Status:</b> ' + data.ticket.status + '</div></div>';
+    const chat = document.getElementById('chatBox');
+    chat.innerHTML = '<div class="chat-bubble user">' + data.ticket.pesan + '<div class="chat-meta">' + new Date(data.ticket.createdAt).toLocaleString('id-ID') + '</div></div>';
+    data.ticket.replies.forEach(r => {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble ' + (r.sender === 'admin' ? 'admin' : 'user');
+      bubble.innerHTML = r.pesan + '<div class="chat-meta">' + new Date(r.at).toLocaleString('id-ID') + '</div>';
+      chat.appendChild(bubble);
+    });
+    document.getElementById('detailModal').classList.remove('hidden');
+  } catch (err) { console.error(err); }
+}
+
+function closeDetail() {
+  document.getElementById('detailModal').classList.add('hidden');
+  loadTiket();
+}
+
+async function kirimBalasan() {
+  const pesan = document.getElementById('replyInput').value.trim();
+  if (!pesan) return;
+  try {
+    await fetch('/api/ticket/' + currentTicket.ticketId + '/reply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender: 'user', pesan })
+    });
+    document.getElementById('replyInput').value = '';
+    openDetail(currentTicket.ticketId);
+  } catch (err) { alert('Gagal kirim'); }
+}
+
+loadTiket();
+</script>
+</body>
+</html>

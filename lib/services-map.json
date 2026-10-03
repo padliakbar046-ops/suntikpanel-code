@@ -1,0 +1,23 @@
+{
+  "tiktok": {
+    "like":     { "service_id": 26459, "nama_provider": "TikTok Likes (10/K) [NR]" },
+    "view":     { "service_id": 36753, "nama_provider": "TikTok Video Views [Max Unlimited] [Super Instant Start] [Non-Drop]" },
+    "follower": { "service_id": 36787, "nama_provider": "TikTok Followers [Max 500K] [Instant Start] [Speed: 50K/day]" },
+    "comment":  { "service_id": null, "nama_provider": "BELUM TERSEDIA" },
+    "share":    { "service_id": 38139, "nama_provider": "TikTok Shares [Max Unlimited] | HQ | Non Drop" }
+  },
+  "instagram": {
+    "like":     { "service_id": 27452, "nama_provider": "Instagram Real Followers | Old accounts +15 Posts | Lifetime" },
+    "view":     { "service_id": 24486, "nama_provider": "Instagram Video Views + %100 Engagement + Sharing + Reach" },
+    "follower": { "service_id": 36410, "nama_provider": "Instagram Followers [SPAM ON] [Refill: 300]" },
+    "comment":  { "service_id": null, "nama_provider": "BELUM TERSEDIA" },
+    "share":    { "service_id": 25708, "nama_provider": "S3 Instagram Saves (100/50K)" }
+  },
+  "facebook": {
+    "like":     { "service_id": 38200, "nama_provider": "Facebook Followers | Page &amp; Profile | Max 1M" },
+    "view":     { "service_id": 24781, "nama_provider": "Facebook Live Stream Views (15 Min)" },
+    "follower": { "service_id": 37729, "nama_provider": "Facebook Followers [ All Type Page &amp; Profile ]" },
+    "comment":  { "service_id": null, "nama_provider": "BELUM TERSEDIA" },
+    "share":    { "service_id": null, "nama_provider": "BELUM TERSEDIA" }
+  }
+}

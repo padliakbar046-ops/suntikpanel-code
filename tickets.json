@@ -1,0 +1,59 @@
+[
+  {
+    "ticketId": "TKT1791006216819",
+    "whatsapp": "081818204314",
+    "nama": "Padli",
+    "kategori": "deposit",
+    "subjek": "gituu bree",
+    "pesan": "gatayy",
+    "status": "closed",
+    "replies": [
+      {
+        "sender": "admin",
+        "pesan": "waduhh ok nanti",
+        "at": "2026-10-03T06:14:21.890Z"
+      },
+      {
+        "sender": "user",
+        "pesan": "hmmmz",
+        "at": "2026-10-03T06:15:04.130Z"
+      },
+      {
+        "sender": "admin",
+        "pesan": "sil",
+        "at": "2026-10-03T06:15:48.259Z"
+      },
+      {
+        "sender": "admin",
+        "pesan": "wett tutup",
+        "at": "2026-10-03T06:16:19.285Z"
+      },
+      {
+        "sender": "user",
+        "pesan": "ya",
+        "at": "2026-10-03T06:16:38.032Z"
+      },
+      {
+        "sender": "user",
+        "pesan": "ya",
+        "at": "2026-10-03T06:16:38.954Z"
+      },
+      {
+        "sender": "user",
+        "pesan": "ya",
+        "at": "2026-10-03T06:16:39.153Z"
+      },
+      {
+        "sender": "user",
+        "pesan": "ya",
+        "at": "2026-10-03T06:16:39.564Z"
+      },
+      {
+        "sender": "user",
+        "pesan": "ya",
+        "at": "2026-10-03T06:16:40.382Z"
+      }
+    ],
+    "createdAt": "2026-10-03T05:43:36.821Z"
+  }
+]
